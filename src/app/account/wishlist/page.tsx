@@ -1,14 +1,24 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Heart } from "lucide-react";
-import { useAccountStore } from "@/lib/store/account";
-import { getProductById } from "@/lib/data/products";
+import type { Product } from "@/lib/types";
+import { apiFetch } from "@/lib/api";
 import ProductCard from "@/components/product/ProductCard";
 import Button from "@/components/ui/Button";
 
 export default function WishlistPage() {
-  const wishlist = useAccountStore((s) => s.wishlist);
-  const items = wishlist.map((id) => getProductById(id)).filter((p): p is NonNullable<typeof p> => !!p);
+  const [items, setItems] = useState<Product[] | null>(null);
+
+  useEffect(() => {
+    apiFetch<{ products: Product[] }>("/api/wishlist")
+      .then((data) => setItems(data.products))
+      .catch(() => setItems([]));
+  }, []);
+
+  if (items === null) {
+    return <div className="py-16 text-center text-foreground/40">Loading…</div>;
+  }
 
   if (items.length === 0) {
     return (

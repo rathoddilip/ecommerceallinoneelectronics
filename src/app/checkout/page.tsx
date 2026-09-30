@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Check,
@@ -16,10 +16,9 @@ import {
 } from "lucide-react";
 import { useCartStore } from "@/lib/store/cart";
 import { useAccountStore } from "@/lib/store/account";
-import { buildCartLines, computeTotals } from "@/lib/cartSelectors";
 import { formatINR } from "@/lib/format";
-import { generateId, generateOrderNo } from "@/lib/utils";
-import type { Address, Order, OrderStatus } from "@/lib/types";
+import { apiFetch } from "@/lib/api";
+import type { Address } from "@/lib/types";
 import Breadcrumbs from "@/components/ui/Breadcrumbs";
 import Button from "@/components/ui/Button";
 import { Field, Input, Select } from "@/components/ui/Input";
@@ -39,19 +38,18 @@ const paymentOptions: { id: PaymentMethod; label: string; icon: typeof Smartphon
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const items = useCartStore((s) => s.items);
-  const couponCode = useCartStore((s) => s.couponCode);
-  const clearCart = useCartStore((s) => s.clearCart);
+  const lines = useCartStore((s) => s.lines);
+  const totals = useCartStore((s) => s.totals);
+  const hasHydrated = useCartStore((s) => s.hasHydrated);
+  const fetchCart = useCartStore((s) => s.fetchCart);
 
   const user = useAccountStore((s) => s.user);
   const login = useAccountStore((s) => s.login);
   const addresses = useAccountStore((s) => s.addresses);
   const addAddress = useAccountStore((s) => s.addAddress);
-  const placeOrder = useAccountStore((s) => s.placeOrder);
+  const fetchOrders = useAccountStore((s) => s.fetchOrders);
 
-  const lines = useMemo(() => buildCartLines(items), [items]);
-  const totals = useMemo(() => computeTotals(lines, couponCode), [lines, couponCode]);
-  const needsInstallation = lines.some((l) => l.item.addInstallation);
+  const needsInstallation = lines.some((l) => l.addInstallation);
 
   const [step, setStep] = useState(0);
   const [mobile, setMobile] = useState("");
@@ -79,6 +77,11 @@ export default function CheckoutPage() {
   const [payment, setPayment] = useState<PaymentMethod>("upi");
   const [gstin, setGstin] = useState("");
   const [placing, setPlacing] = useState(false);
+  const [placeError, setPlaceError] = useState("");
+
+  if (!hasHydrated) {
+    return <div className="container-page py-24 text-center text-foreground/40">Loading…</div>;
+  }
 
   if (lines.length === 0) {
     return (
@@ -96,52 +99,33 @@ export default function CheckoutPage() {
     if (otp.length === 4) login(mobile);
   }
 
-  function handleSaveAddress() {
+  async function handleSaveAddress() {
     if (!form.name || !form.phone || !form.line1 || !form.city || !form.pincode) return;
-    const address: Address = { id: generateId("addr"), isDefault: addresses.length === 0, ...form };
-    addAddress(address);
-    setSelectedAddressId(address.id);
+    await addAddress(form);
+    const created = useAccountStore.getState().addresses.at(-1);
+    if (created) setSelectedAddressId(created.id);
     setShowAddressForm(false);
   }
 
-  function handlePlaceOrder() {
-    const selectedAddress = addresses.find((a) => a.id === selectedAddressId);
-    if (!selectedAddress) return;
+  async function handlePlaceOrder() {
+    if (!selectedAddressId) return;
     setPlacing(true);
-
-    const order: Order = {
-      id: generateId("order"),
-      orderNo: generateOrderNo(),
-      createdAt: new Date().toISOString(),
-      items: lines.map((l) => ({
-        productId: l.product.id,
-        name: l.product.name,
-        image: l.product.category,
-        variantLabel: l.variant?.label,
-        qty: l.item.qty,
-        price: l.unitPrice,
-        addInstallation: l.item.addInstallation,
-      })),
-      addressId: selectedAddress.id,
-      addressSnapshot: selectedAddress,
-      subtotal: totals.subtotal,
-      discount: totals.discount + totals.couponDiscount,
-      tax: totals.tax,
-      shipping: totals.shipping,
-      installationTotal: totals.installationTotal + totals.amcTotal,
-      grandTotal: totals.grandTotal,
-      paymentMethod: paymentOptions.find((p) => p.id === payment)?.label ?? payment,
-      paymentStatus: payment === "cod" ? "pending" : "paid",
-      status: "placed" as OrderStatus,
-      couponCode: couponCode ?? undefined,
-      gstin: gstin || undefined,
-    };
-
-    setTimeout(() => {
-      placeOrder(order);
-      clearCart();
+    setPlaceError("");
+    try {
+      const order = await apiFetch<{ orderNo: string }>("/api/orders", {
+        method: "POST",
+        body: JSON.stringify({
+          addressId: selectedAddressId,
+          paymentMethod: paymentOptions.find((p) => p.id === payment)?.label ?? payment,
+          gstin: gstin || undefined,
+        }),
+      });
+      await Promise.all([fetchCart(), fetchOrders()]);
       router.push(`/checkout/success?order=${order.orderNo}`);
-    }, 900);
+    } catch (e) {
+      setPlaceError(e instanceof Error ? e.message : "Could not place order");
+      setPlacing(false);
+    }
   }
 
   return (
@@ -379,11 +363,11 @@ export default function CheckoutPage() {
               </h2>
               <div className="divide-y divide-border-subtle">
                 {lines.map((line) => (
-                  <div key={`${line.item.productId}-${line.item.variantId ?? ""}`} className="flex gap-3 py-3">
+                  <div key={`${line.productId}-${line.variantId ?? ""}`} className="flex gap-3 py-3">
                     <ProductVisual department={line.product.department} category={line.product.category} className="h-14 w-14" iconClassName="h-6 w-6" />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium line-clamp-1">{line.product.name}</p>
-                      <p className="text-xs text-foreground/50">Qty {line.item.qty} {line.variant && `· ${line.variant.label}`}</p>
+                      <p className="text-xs text-foreground/50">Qty {line.qty} {line.variantLabel && `· ${line.variantLabel}`}</p>
                     </div>
                     <span className="text-sm font-semibold">{formatINR(line.lineTotal)}</span>
                   </div>
@@ -396,6 +380,7 @@ export default function CheckoutPage() {
                   <p>Installation: <strong className="text-foreground">{installationDate}, {installationSlot}</strong></p>
                 )}
               </div>
+              {placeError && <p className="mt-3 text-sm text-danger-500">{placeError}</p>}
               <div className="mt-6 flex gap-2">
                 <Button variant="outline" onClick={() => setStep(2)}>Back</Button>
                 <Button onClick={handlePlaceOrder} disabled={placing} size="lg">

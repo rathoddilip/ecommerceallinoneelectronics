@@ -16,7 +16,7 @@ const tabs = [
 
 export default function MobileTabBar() {
   const pathname = usePathname();
-  const cartCount = useCartStore((s) => s.items.reduce((sum, i) => sum + i.qty, 0));
+  const cartCount = useCartStore((s) => s.totals.itemCount);
 
   return (
     <nav className="fixed bottom-0 inset-x-0 z-40 md:hidden border-t border-border-subtle bg-surface/95 backdrop-blur">

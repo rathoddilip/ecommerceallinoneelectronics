@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import type { ServiceRequest, ServiceType } from "@/lib/types";
 import { useAccountStore } from "@/lib/store/account";
-import { generateId, generateJobNo } from "@/lib/utils";
+import { apiFetch } from "@/lib/api";
 import { formatINR } from "@/lib/format";
 import Breadcrumbs from "@/components/ui/Breadcrumbs";
 import Button from "@/components/ui/Button";
@@ -37,7 +37,7 @@ export default function ServicePage() {
   const myProducts = useAccountStore((s) => s.myProducts);
   const addresses = useAccountStore((s) => s.addresses);
   const addAddress = useAccountStore((s) => s.addAddress);
-  const addServiceRequest = useAccountStore((s) => s.addServiceRequest);
+  const fetchServiceRequests = useAccountStore((s) => s.fetchServiceRequests);
 
   const [mobile, setMobile] = useState("");
   const [otpSent, setOtpSent] = useState(false);
@@ -67,37 +67,38 @@ export default function ServicePage() {
     if (otp.length === 4) login(mobile);
   }
 
-  function handleSubmit() {
+  async function handleSubmit() {
     if (!type || !productName || !slotDate) return;
 
-    let addressId = selectedAddressId;
-    if (!addressId && addressForm.name && addressForm.line1) {
-      const addr = { id: generateId("addr"), isDefault: addresses.length === 0, type: "home" as const, ...addressForm };
-      addAddress(addr);
-      addressId = addr.id;
-    }
-    if (!addressId) return;
-
     setSubmitting(true);
-    const req: ServiceRequest = {
-      id: generateId("svc"),
-      jobNo: generateJobNo(),
-      type,
-      productName,
-      issue: issue || "Not specified",
-      slotDate,
-      slotTime,
-      addressId,
-      status: "requested",
-      charges: selectedType?.charge ?? 0,
-      createdAt: new Date().toISOString(),
-    };
+    try {
+      let addressId = selectedAddressId;
+      if (!addressId && addressForm.name && addressForm.line1) {
+        await addAddress({ type: "home", ...addressForm });
+        addressId = useAccountStore.getState().addresses.at(-1)?.id ?? null;
+      }
+      if (!addressId) {
+        setSubmitting(false);
+        return;
+      }
 
-    setTimeout(() => {
-      addServiceRequest(req);
-      setSubmitting(false);
+      const req = await apiFetch<ServiceRequest>("/api/service-requests", {
+        method: "POST",
+        body: JSON.stringify({
+          type,
+          productName,
+          issue: issue || "Not specified",
+          slotDate,
+          slotTime,
+          addressId,
+          charges: selectedType?.charge ?? 0,
+        }),
+      });
+      await fetchServiceRequests();
       setConfirmed(req);
-    }, 800);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   if (confirmed) {

@@ -1,6 +1,8 @@
-import { allBrands } from "@/lib/data/brands";
+import { prisma } from "@/lib/prisma";
 
-export default function BrandStrip() {
+export default async function BrandStrip() {
+  const brands = await prisma.brand.findMany({ orderBy: { name: "asc" } });
+
   return (
     <div className="border-y border-border-subtle bg-surface-muted/60">
       <div className="container-page py-6">
@@ -8,9 +10,9 @@ export default function BrandStrip() {
           Trusted brands we sell
         </p>
         <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-3">
-          {allBrands.map((brand) => (
-            <span key={brand} className="text-sm font-bold text-foreground/35 hover:text-foreground/60 transition-colors">
-              {brand}
+          {brands.map((brand) => (
+            <span key={brand.slug} className="text-sm font-bold text-foreground/35 hover:text-foreground/60 transition-colors">
+              {brand.name}
             </span>
           ))}
         </div>

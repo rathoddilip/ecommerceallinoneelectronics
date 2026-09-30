@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check, ShieldCheck, Star } from "lucide-react";
-import { amcPlans } from "@/lib/data/amcPlans";
 import { departments } from "@/lib/data/categories";
-import type { Department } from "@/lib/types";
+import type { AmcPlan, Department } from "@/lib/types";
+import { apiFetch } from "@/lib/api";
 import { formatINR } from "@/lib/format";
 import Breadcrumbs from "@/components/ui/Breadcrumbs";
 import Button from "@/components/ui/Button";
@@ -12,6 +12,12 @@ import { cn } from "@/lib/utils";
 
 export default function AmcPlansPage() {
   const [dept, setDept] = useState<Department>("water-purifiers");
+  const [amcPlans, setAmcPlans] = useState<AmcPlan[]>([]);
+
+  useEffect(() => {
+    apiFetch<AmcPlan[]>("/api/amc-plans").then(setAmcPlans).catch(() => {});
+  }, []);
+
   const plans = amcPlans.filter((p) => p.applicableCategories.includes(dept));
 
   return (

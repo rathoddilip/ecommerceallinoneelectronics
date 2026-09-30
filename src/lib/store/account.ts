@@ -1,12 +1,11 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { apiFetch } from "@/lib/api";
 import type {
   Address,
   CustomerProduct,
   Order,
   ServiceRequest,
 } from "@/lib/types";
-import { safeJsonStorage } from "@/lib/store/storage";
 
 interface User {
   name: string;
@@ -25,98 +24,118 @@ interface AccountState {
   myProducts: CustomerProduct[];
   hasHydrated: boolean;
 
-  login: (mobile: string, name?: string) => void;
-  logout: () => void;
+  hydrate: () => Promise<void>;
+  login: (mobile: string, name?: string) => Promise<void>;
+  logout: () => Promise<void>;
 
-  addAddress: (address: Address) => void;
-  updateAddress: (address: Address) => void;
-  removeAddress: (id: string) => void;
-  setDefaultAddress: (id: string) => void;
+  fetchAddresses: () => Promise<void>;
+  addAddress: (address: Omit<Address, "id" | "isDefault"> & { isDefault?: boolean }) => Promise<void>;
+  updateAddress: (address: Address) => Promise<void>;
+  removeAddress: (id: string) => Promise<void>;
+  setDefaultAddress: (id: string) => Promise<void>;
 
-  toggleWishlist: (productId: string) => void;
+  fetchWishlist: () => Promise<void>;
+  toggleWishlist: (productId: string) => Promise<void>;
 
-  placeOrder: (order: Order) => void;
+  fetchOrders: () => Promise<void>;
 
-  addServiceRequest: (req: ServiceRequest) => void;
-  updateServiceRequest: (id: string, patch: Partial<ServiceRequest>) => void;
+  fetchServiceRequests: () => Promise<void>;
+  updateServiceRequest: (id: string, patch: { status?: string }) => Promise<void>;
 
-  setHasHydrated: (value: boolean) => void;
+  fetchMyProducts: () => Promise<void>;
 }
 
-export const useAccountStore = create<AccountState>()(
-  persist(
-    (set) => ({
-      user: null,
-      addresses: [],
-      wishlist: [],
-      orders: [],
-      serviceRequests: [],
-      myProducts: [
-        {
-          id: "cp-demo-1",
-          productId: "wp-001",
-          name: "Kent Grand Plus RO+UV+UF Water Purifier (9L)",
-          serialNo: "KGP-208831",
-          purchaseDate: "2025-11-02T00:00:00.000Z",
-          installDate: "2025-11-05T00:00:00.000Z",
-          warrantyEndDate: "2026-11-05T00:00:00.000Z",
-          amcStatus: "active",
-          nextFilterChangeDate: "2026-11-05T00:00:00.000Z",
-        },
-      ],
-      hasHydrated: false,
+export const useAccountStore = create<AccountState>()((set, get) => ({
+  user: null,
+  addresses: [],
+  wishlist: [],
+  orders: [],
+  serviceRequests: [],
+  myProducts: [],
+  hasHydrated: false,
 
-      login: (mobile, name) =>
-        set({
-          user: {
-            name: name?.trim() || "Customer",
-            mobile,
-            walletBalance: 250,
-            referralCode: `AOE${mobile.slice(-4)}`,
-          },
-        }),
-      logout: () => set({ user: null }),
+  hydrate: async () => {
+    const { user } = await apiFetch<{ user: User | null }>("/api/auth/me");
+    set({ user, hasHydrated: true });
+    await Promise.all([
+      get().fetchAddresses(),
+      get().fetchWishlist(),
+      user ? get().fetchOrders() : Promise.resolve(),
+      user ? get().fetchServiceRequests() : Promise.resolve(),
+      user ? get().fetchMyProducts() : Promise.resolve(),
+    ]);
+  },
 
-      addAddress: (address) =>
-        set((state) => ({ addresses: [...state.addresses, address] })),
-      updateAddress: (address) =>
-        set((state) => ({
-          addresses: state.addresses.map((a) => (a.id === address.id ? address : a)),
-        })),
-      removeAddress: (id) =>
-        set((state) => ({ addresses: state.addresses.filter((a) => a.id !== id) })),
-      setDefaultAddress: (id) =>
-        set((state) => ({
-          addresses: state.addresses.map((a) => ({ ...a, isDefault: a.id === id })),
-        })),
+  login: async (mobile, name) => {
+    const user = await apiFetch<User>("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ mobile, name }),
+    });
+    set({ user });
+    await Promise.all([get().fetchOrders(), get().fetchServiceRequests(), get().fetchMyProducts()]);
+  },
 
-      toggleWishlist: (productId) =>
-        set((state) => ({
-          wishlist: state.wishlist.includes(productId)
-            ? state.wishlist.filter((id) => id !== productId)
-            : [...state.wishlist, productId],
-        })),
+  logout: async () => {
+    await apiFetch("/api/auth/logout", { method: "POST" });
+    set({ user: null, orders: [], serviceRequests: [], myProducts: [] });
+  },
 
-      placeOrder: (order) =>
-        set((state) => ({ orders: [order, ...state.orders] })),
+  fetchAddresses: async () => {
+    const addresses = await apiFetch<Address[]>("/api/addresses");
+    set({ addresses });
+  },
+  addAddress: async (address) => {
+    await apiFetch<Address>("/api/addresses", { method: "POST", body: JSON.stringify(address) });
+    await get().fetchAddresses();
+  },
+  updateAddress: async (address) => {
+    await apiFetch<Address>(`/api/addresses/${address.id}`, {
+      method: "PATCH",
+      body: JSON.stringify(address),
+    });
+    await get().fetchAddresses();
+  },
+  removeAddress: async (id) => {
+    await apiFetch(`/api/addresses/${id}`, { method: "DELETE" });
+    await get().fetchAddresses();
+  },
+  setDefaultAddress: async (id) => {
+    const addresses = await apiFetch<Address[]>(`/api/addresses/${id}/default`, { method: "POST" });
+    set({ addresses });
+  },
 
-      addServiceRequest: (req) =>
-        set((state) => ({ serviceRequests: [req, ...state.serviceRequests] })),
-      updateServiceRequest: (id, patch) =>
-        set((state) => ({
-          serviceRequests: state.serviceRequests.map((r) =>
-            r.id === id ? { ...r, ...patch } : r
-          ),
-        })),
+  fetchWishlist: async () => {
+    const { productIds } = await apiFetch<{ productIds: string[] }>("/api/wishlist");
+    set({ wishlist: productIds });
+  },
+  toggleWishlist: async (productId) => {
+    const { productIds } = await apiFetch<{ productIds: string[] }>("/api/wishlist/toggle", {
+      method: "POST",
+      body: JSON.stringify({ productId }),
+    });
+    set({ wishlist: productIds });
+  },
 
-      setHasHydrated: (value) => set({ hasHydrated: value }),
-    }),
-    {
-      name: "aoe-account",
-      storage: safeJsonStorage(),
-      onRehydrateStorage: () => (state) => {
-        state?.setHasHydrated(true);
-      },
-    }
-  )
-);
+  fetchOrders: async () => {
+    const orders = await apiFetch<Order[]>("/api/orders");
+    set({ orders });
+  },
+
+  fetchServiceRequests: async () => {
+    const serviceRequests = await apiFetch<ServiceRequest[]>("/api/service-requests");
+    set({ serviceRequests });
+  },
+  updateServiceRequest: async (id, patch) => {
+    await apiFetch(`/api/service-requests/${id}`, { method: "PATCH", body: JSON.stringify(patch) });
+    await get().fetchServiceRequests();
+  },
+
+  fetchMyProducts: async () => {
+    const myProducts = await apiFetch<CustomerProduct[]>("/api/my-products");
+    set({ myProducts });
+  },
+}));
+
+if (typeof window !== "undefined") {
+  useAccountStore.getState().hydrate();
+}

@@ -1,80 +1,123 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
-import type { CartItem } from "@/lib/types";
-import { safeJsonStorage } from "@/lib/store/storage";
+import { apiFetch } from "@/lib/api";
+import { computeTotals } from "@/lib/cartSelectors";
+import type { CartLineDTO, CartResponse } from "@/lib/server/cart";
 
 interface CartState {
-  items: CartItem[];
+  lines: CartLineDTO[];
   couponCode: string | null;
+  totals: CartResponse["totals"];
   hasHydrated: boolean;
-  addItem: (item: CartItem) => void;
-  removeItem: (productId: string, variantId?: string) => void;
-  updateQty: (productId: string, variantId: string | undefined, qty: number) => void;
-  toggleInstallation: (productId: string, variantId: string | undefined, value: boolean) => void;
-  setAmcPlan: (productId: string, variantId: string | undefined, planId: string | undefined) => void;
-  applyCoupon: (code: string) => void;
-  removeCoupon: () => void;
-  clearCart: () => void;
-  setHasHydrated: (value: boolean) => void;
+  isMutating: boolean;
+  couponError: string | null;
+
+  fetchCart: () => Promise<void>;
+  addItem: (item: {
+    productId: string;
+    variantId?: string;
+    qty?: number;
+    addInstallation?: boolean;
+    addAmcPlanId?: string;
+  }) => Promise<void>;
+  updateQty: (productId: string, variantId: string | undefined, qty: number) => Promise<void>;
+  removeItem: (productId: string, variantId?: string) => Promise<void>;
+  toggleInstallation: (productId: string, variantId: string | undefined, value: boolean) => Promise<void>;
+  setAmcPlan: (productId: string, variantId: string | undefined, planId: string | undefined) => Promise<void>;
+  applyCoupon: (code: string) => Promise<void>;
+  removeCoupon: () => Promise<void>;
+  clearCart: () => Promise<void>;
 }
 
-function sameLine(a: CartItem, productId: string, variantId?: string) {
-  return a.productId === productId && a.variantId === variantId;
+const emptyTotals = computeTotals([], null);
+
+function qs(params: Record<string, string | undefined>) {
+  const search = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) if (v) search.set(k, v);
+  const str = search.toString();
+  return str ? `?${str}` : "";
 }
 
-export const useCartStore = create<CartState>()(
-  persist(
-    (set) => ({
-      items: [],
-      couponCode: null,
-      hasHydrated: false,
-      addItem: (item) =>
-        set((state) => {
-          const existing = state.items.find((i) => sameLine(i, item.productId, item.variantId));
-          if (existing) {
-            return {
-              items: state.items.map((i) =>
-                sameLine(i, item.productId, item.variantId)
-                  ? { ...i, qty: i.qty + item.qty }
-                  : i
-              ),
-            };
-          }
-          return { items: [...state.items, item] };
-        }),
-      removeItem: (productId, variantId) =>
-        set((state) => ({
-          items: state.items.filter((i) => !sameLine(i, productId, variantId)),
-        })),
-      updateQty: (productId, variantId, qty) =>
-        set((state) => ({
-          items: state.items
-            .map((i) => (sameLine(i, productId, variantId) ? { ...i, qty } : i))
-            .filter((i) => i.qty > 0),
-        })),
-      toggleInstallation: (productId, variantId, value) =>
-        set((state) => ({
-          items: state.items.map((i) =>
-            sameLine(i, productId, variantId) ? { ...i, addInstallation: value } : i
-          ),
-        })),
-      setAmcPlan: (productId, variantId, planId) =>
-        set((state) => ({
-          items: state.items.map((i) =>
-            sameLine(i, productId, variantId) ? { ...i, addAmcPlanId: planId } : i
-          ),
-        })),
-      applyCoupon: (code) => set({ couponCode: code }),
-      removeCoupon: () => set({ couponCode: null }),
-      clearCart: () => set({ items: [], couponCode: null }),
-      setHasHydrated: (value) => set({ hasHydrated: value }),
-    }),
-    {
-      name: "aoe-cart",
-      storage: safeJsonStorage(),
-      onRehydrateStorage: () => (state) => {
-        state?.setHasHydrated(true);
-      },
+export const useCartStore = create<CartState>()((set) => ({
+  lines: [],
+  couponCode: null,
+  totals: emptyTotals,
+  hasHydrated: false,
+  isMutating: false,
+  couponError: null,
+
+  fetchCart: async () => {
+    const data = await apiFetch<CartResponse>("/api/cart");
+    set({ lines: data.lines, couponCode: data.couponCode, totals: data.totals, hasHydrated: true });
+  },
+
+  addItem: async (item) => {
+    set({ isMutating: true });
+    try {
+      const data = await apiFetch<CartResponse>("/api/cart/items", {
+        method: "POST",
+        body: JSON.stringify(item),
+      });
+      set({ lines: data.lines, couponCode: data.couponCode, totals: data.totals });
+    } finally {
+      set({ isMutating: false });
     }
-  )
-);
+  },
+
+  updateQty: async (productId, variantId, qty) => {
+    const data = await apiFetch<CartResponse>("/api/cart/items", {
+      method: "PATCH",
+      body: JSON.stringify({ productId, variantId, qty }),
+    });
+    set({ lines: data.lines, couponCode: data.couponCode, totals: data.totals });
+  },
+
+  removeItem: async (productId, variantId) => {
+    const data = await apiFetch<CartResponse>(`/api/cart/items${qs({ productId, variantId })}`, {
+      method: "DELETE",
+    });
+    set({ lines: data.lines, couponCode: data.couponCode, totals: data.totals });
+  },
+
+  toggleInstallation: async (productId, variantId, value) => {
+    const data = await apiFetch<CartResponse>("/api/cart/items", {
+      method: "PATCH",
+      body: JSON.stringify({ productId, variantId, addInstallation: value }),
+    });
+    set({ lines: data.lines, couponCode: data.couponCode, totals: data.totals });
+  },
+
+  setAmcPlan: async (productId, variantId, planId) => {
+    const data = await apiFetch<CartResponse>("/api/cart/items", {
+      method: "PATCH",
+      body: JSON.stringify({ productId, variantId, addAmcPlanId: planId ?? null }),
+    });
+    set({ lines: data.lines, couponCode: data.couponCode, totals: data.totals });
+  },
+
+  applyCoupon: async (code) => {
+    try {
+      const data = await apiFetch<CartResponse>("/api/cart/coupon", {
+        method: "POST",
+        body: JSON.stringify({ code }),
+      });
+      set({ lines: data.lines, couponCode: data.couponCode, totals: data.totals, couponError: null });
+    } catch (e) {
+      set({ couponError: e instanceof Error ? e.message : "Could not apply coupon" });
+    }
+  },
+
+  removeCoupon: async () => {
+    const data = await apiFetch<CartResponse>("/api/cart/coupon", { method: "DELETE" });
+    set({ lines: data.lines, couponCode: data.couponCode, totals: data.totals, couponError: null });
+  },
+
+  clearCart: async () => {
+    const data = await apiFetch<CartResponse>("/api/cart", { method: "DELETE" });
+    set({ lines: data.lines, couponCode: data.couponCode, totals: data.totals });
+  },
+}));
+
+// Kick off the initial fetch once, client-side only.
+if (typeof window !== "undefined") {
+  useCartStore.getState().fetchCart();
+}

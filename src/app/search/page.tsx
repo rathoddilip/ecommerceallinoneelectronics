@@ -1,10 +1,11 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Search as SearchIcon } from "lucide-react";
-import { products } from "@/lib/data/products";
 import { departments } from "@/lib/data/categories";
+import type { Product } from "@/lib/types";
+import { apiFetch } from "@/lib/api";
 import ProductGrid from "@/components/shop/ProductGrid";
 import Breadcrumbs from "@/components/ui/Breadcrumbs";
 
@@ -12,6 +13,11 @@ function SearchContent() {
   const router = useRouter();
   const initialQ = useSearchParams().get("q") ?? "";
   const [query, setQuery] = useState(initialQ);
+  const [products, setProducts] = useState<Product[]>([]);
+
+  useEffect(() => {
+    apiFetch<Product[]>("/api/products").then(setProducts).catch(() => {});
+  }, []);
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -22,7 +28,7 @@ function SearchContent() {
         .toLowerCase()
         .includes(q)
     );
-  }, [query]);
+  }, [products, query]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

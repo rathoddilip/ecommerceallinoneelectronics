@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { MapPin, Plus, Trash2, Star } from "lucide-react";
 import { useAccountStore } from "@/lib/store/account";
-import { generateId } from "@/lib/utils";
 import type { Address } from "@/lib/types";
 import Button from "@/components/ui/Button";
 import { Field, Input, Select } from "@/components/ui/Input";
@@ -20,9 +19,9 @@ export default function AddressesPage() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(emptyForm);
 
-  function handleSave() {
+  async function handleSave() {
     if (!form.name || !form.phone || !form.line1 || !form.city || !form.pincode) return;
-    addAddress({ id: generateId("addr"), isDefault: addresses.length === 0, ...form });
+    await addAddress(form);
     setForm(emptyForm);
     setShowForm(false);
   }

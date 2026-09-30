@@ -1,0 +1,313 @@
+// Prisma schema for AllInOne Electronics
+// Learn more: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─────────────────────────── Enums ───────────────────────────
+
+enum Department {
+  electrical
+  electronics
+  water_purifiers
+}
+
+enum InstallationType {
+  none
+  free
+  paid
+}
+
+enum AddressType {
+  home
+  work
+}
+
+enum PaymentStatus {
+  pending
+  paid
+  failed
+}
+
+enum OrderStatus {
+  placed
+  confirmed
+  packed
+  shipped
+  out_for_delivery
+  delivered
+  installed
+}
+
+enum ServiceType {
+  installation
+  demo
+  filter_replacement
+  repair
+  amc_visit
+  uninstall_reinstall
+}
+
+enum ServiceStatus {
+  requested
+  assigned
+  in_progress
+  completed
+  cancelled
+}
+
+enum AmcStatus {
+  none
+  active
+  expired
+}
+
+// ─────────────────── Anonymous-session profile ───────────────────
+// No real authentication yet: every visitor gets a random session id
+// (httpOnly cookie) that keys their cart, orders, addresses, etc.
+// `User` just holds the mock-login display profile for that session.
+
+model User {
+  id            String   @id @default(cuid())
+  sessionId     String   @unique
+  name          String
+  mobile        String
+  email         String?
+  walletBalance Int      @default(250)
+  referralCode  String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  addresses        Address[]
+  orders           Order[]
+  serviceRequests  ServiceRequest[]
+  customerProducts CustomerProduct[]
+  wishlistItems    WishlistItem[]
+}
+
+model Address {
+  id        String      @id @default(cuid())
+  sessionId String
+  user      User?       @relation(fields: [sessionId], references: [sessionId])
+  name      String
+  phone     String
+  line1     String
+  line2     String?
+  landmark  String?
+  city      String
+  state     String
+  pincode   String
+  type      AddressType @default(home)
+  isDefault Boolean     @default(false)
+  createdAt DateTime    @default(now())
+
+  orders          Order[]
+  serviceRequests ServiceRequest[]
+
+  @@index([sessionId])
+}
+
+// ─────────────────────────── Catalog ───────────────────────────
+
+model Category {
+  id          String     @id @default(cuid())
+  slug        String     @unique
+  name        String
+  department  Department
+  description String?
+  sortOrder   Int        @default(0)
+}
+
+model Brand {
+  slug String @id
+  name String
+}
+
+model Product {
+  id               String           @id @default(cuid())
+  slug             String           @unique
+  name             String
+  brand            String
+  department       Department
+  category         String
+  categoryLabel    String
+  shortDescription String
+  description      String
+  mrp              Int
+  price            Int
+  gstRate          Int
+  rating           Float            @default(0)
+  reviewCount      Int              @default(0)
+  stock            Int              @default(0)
+  warrantyMonths   Int              @default(0)
+  returnDays       Int              @default(0)
+  isReturnable     Boolean          @default(true)
+  tags             Json             @default("[]")
+  attributes       Json             @default("[]")
+  variants         Json?
+  installation     InstallationType @default(none)
+  installationFee  Int              @default(0)
+  amcEligible      Boolean          @default(false)
+  badges           Json?
+  whatsInTheBox    Json             @default("[]")
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  reviews       Review[]
+  cartItems     CartItem[]
+  orderItems    OrderItem[]
+  wishlistItems WishlistItem[]
+
+  @@index([department])
+  @@index([category])
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  author    String
+  rating    Int
+  title     String
+  text      String
+  verified  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([productId])
+}
+
+model AmcPlan {
+  id                      String       @id @default(cuid())
+  name                    String
+  applicableCategories    Department[]
+  durationMonths          Int
+  visits                  Int
+  filtersIncluded         Boolean      @default(false)
+  breakdownVisitsIncluded Boolean      @default(false)
+  price                   Int
+  highlight               Boolean      @default(false)
+  features                Json         @default("[]")
+}
+
+// ─────────────────────────── Cart ───────────────────────────
+
+model Cart {
+  id         String     @id @default(cuid())
+  sessionId  String     @unique
+  couponCode String?
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  items      CartItem[]
+}
+
+model CartItem {
+  id              String  @id @default(cuid())
+  cartId          String
+  cart            Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  productId       String
+  product         Product @relation(fields: [productId], references: [id])
+  variantId       String?
+  qty             Int     @default(1)
+  addInstallation Boolean @default(false)
+  addAmcPlanId    String?
+
+  @@unique([cartId, productId, variantId])
+}
+
+// ─────────────────────────── Orders ───────────────────────────
+
+model Order {
+  id                String        @id @default(cuid())
+  orderNo           String        @unique
+  sessionId         String
+  user              User?         @relation(fields: [sessionId], references: [sessionId])
+  addressId         String
+  address           Address       @relation(fields: [addressId], references: [id])
+  addressSnapshot   Json
+  subtotal          Int
+  discount          Int
+  tax               Int
+  shipping          Int
+  installationTotal Int
+  grandTotal        Int
+  paymentMethod     String
+  paymentStatus     PaymentStatus @default(pending)
+  status            OrderStatus   @default(placed)
+  couponCode        String?
+  gstin             String?
+  createdAt         DateTime      @default(now())
+
+  items OrderItem[]
+
+  @@index([sessionId])
+}
+
+model OrderItem {
+  id              String  @id @default(cuid())
+  orderId         String
+  order           Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId       String
+  product         Product @relation(fields: [productId], references: [id])
+  name            String
+  image           String
+  variantLabel    String?
+  qty             Int
+  price           Int
+  addInstallation Boolean @default(false)
+}
+
+// ─────────────────────────── Service ───────────────────────────
+
+model ServiceRequest {
+  id             String        @id @default(cuid())
+  jobNo          String        @unique
+  sessionId      String
+  user           User?         @relation(fields: [sessionId], references: [sessionId])
+  type           ServiceType
+  productName    String
+  issue          String
+  slotDate       String
+  slotTime       String
+  addressId      String
+  address        Address       @relation(fields: [addressId], references: [id])
+  status         ServiceStatus @default(requested)
+  charges        Int           @default(0)
+  technicianName String?
+  createdAt      DateTime      @default(now())
+
+  @@index([sessionId])
+}
+
+model CustomerProduct {
+  id                   String    @id @default(cuid())
+  sessionId            String
+  user                 User?     @relation(fields: [sessionId], references: [sessionId])
+  productId            String
+  name                 String
+  serialNo             String?
+  purchaseDate         DateTime
+  installDate          DateTime?
+  warrantyEndDate      DateTime
+  amcStatus            AmcStatus @default(none)
+  nextFilterChangeDate DateTime?
+
+  @@index([sessionId])
+}
+
+model WishlistItem {
+  id        String   @id @default(cuid())
+  sessionId String
+  user      User?    @relation(fields: [sessionId], references: [sessionId])
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([sessionId, productId])
+  @@index([sessionId])
+}

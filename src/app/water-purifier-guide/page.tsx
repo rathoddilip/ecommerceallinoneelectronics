@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Droplet, Check, RotateCcw } from "lucide-react";
-import { products } from "@/lib/data/products";
+import type { Product } from "@/lib/types";
+import { apiFetch } from "@/lib/api";
 import Breadcrumbs from "@/components/ui/Breadcrumbs";
 import Button from "@/components/ui/Button";
 import ProductRail from "@/components/product/ProductRail";
@@ -63,6 +64,11 @@ export default function WaterPurifierGuidePage() {
   const [source, setSource] = useState<Source | null>(null);
   const [tds, setTds] = useState<Tds | null>(null);
   const [family, setFamily] = useState<FamilySize | null>(null);
+  const [products, setProducts] = useState<Product[]>([]);
+
+  useEffect(() => {
+    apiFetch<Product[]>("/api/products").then(setProducts).catch(() => {});
+  }, []);
 
   const done = source && tds && family;
   const result = done ? recommend(source, tds, family) : null;

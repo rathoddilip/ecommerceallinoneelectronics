@@ -6,9 +6,15 @@ import Testimonials from "@/components/home/Testimonials";
 import Newsletter from "@/components/home/Newsletter";
 import Section from "@/components/ui/Section";
 import ProductRail from "@/components/product/ProductRail";
-import { products } from "@/lib/data/products";
+import { prisma } from "@/lib/prisma";
+import { productInclude, serializeProduct } from "@/lib/serializers";
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+
+export default async function Home() {
+  const rows = await prisma.product.findMany({ ...productInclude, orderBy: { createdAt: "asc" } });
+  const products = rows.map(serializeProduct);
+
   const deals = products.filter((p) => p.tags.includes("deal")).slice(0, 8);
   const bestsellers = products.filter((p) => p.tags.includes("bestseller")).slice(0, 8);
   const topRatedPurifiers = products

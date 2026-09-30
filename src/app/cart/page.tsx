@@ -1,42 +1,35 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ShoppingBag, Trash2, Wrench, Tag, ArrowRight } from "lucide-react";
 import { useCartStore } from "@/lib/store/cart";
-import { buildCartLines, computeTotals } from "@/lib/cartSelectors";
 import { formatINR } from "@/lib/format";
 import ProductVisual from "@/components/product/ProductVisual";
 import QuantityStepper from "@/components/ui/QuantityStepper";
 import Button from "@/components/ui/Button";
 import Breadcrumbs from "@/components/ui/Breadcrumbs";
-import { amcPlans } from "@/lib/data/amcPlans";
+import { apiFetch } from "@/lib/api";
+import type { AmcPlan } from "@/lib/types";
 
 export default function CartPage() {
-  const items = useCartStore((s) => s.items);
+  const lines = useCartStore((s) => s.lines);
+  const totals = useCartStore((s) => s.totals);
   const hasHydrated = useCartStore((s) => s.hasHydrated);
   const updateQty = useCartStore((s) => s.updateQty);
   const removeItem = useCartStore((s) => s.removeItem);
   const toggleInstallation = useCartStore((s) => s.toggleInstallation);
   const couponCode = useCartStore((s) => s.couponCode);
+  const couponError = useCartStore((s) => s.couponError);
   const applyCoupon = useCartStore((s) => s.applyCoupon);
   const removeCoupon = useCartStore((s) => s.removeCoupon);
 
   const [couponInput, setCouponInput] = useState("");
-  const [couponError, setCouponError] = useState("");
+  const [amcPlans, setAmcPlans] = useState<AmcPlan[]>([]);
 
-  const lines = buildCartLines(items);
-  const totals = computeTotals(lines, couponCode);
-
-  function handleApplyCoupon() {
-    const testTotals = computeTotals(lines, couponInput);
-    if (testTotals.couponDiscount > 0) {
-      applyCoupon(couponInput);
-      setCouponError("");
-    } else {
-      setCouponError("Invalid or inapplicable coupon code");
-    }
-  }
+  useEffect(() => {
+    apiFetch<AmcPlan[]>("/api/amc-plans").then(setAmcPlans).catch(() => {});
+  }, []);
 
   if (!hasHydrated) {
     return <div className="container-page py-24 text-center text-foreground/40">Loading your cart…</div>;
@@ -65,9 +58,9 @@ export default function CartPage() {
       <div className="grid gap-8 lg:grid-cols-[1fr_360px]">
         <div className="space-y-4">
           {lines.map((line) => {
-            const plan = line.item.addAmcPlanId ? amcPlans.find((p) => p.id === line.item.addAmcPlanId) : undefined;
+            const plan = line.addAmcPlanId ? amcPlans.find((p) => p.id === line.addAmcPlanId) : undefined;
             return (
-              <div key={`${line.item.productId}-${line.item.variantId ?? ""}`} className="card-surface flex gap-4 p-4">
+              <div key={`${line.productId}-${line.variantId ?? ""}`} className="card-surface flex gap-4 p-4">
                 <Link href={`/products/${line.product.slug}`} className="shrink-0">
                   <ProductVisual
                     department={line.product.department}
@@ -82,11 +75,11 @@ export default function CartPage() {
                       <Link href={`/products/${line.product.slug}`} className="font-semibold text-sm hover:text-brand-600 line-clamp-2">
                         {line.product.name}
                       </Link>
-                      {line.variant && <p className="text-xs text-foreground/50 mt-0.5">{line.variant.label}</p>}
+                      {line.variantLabel && <p className="text-xs text-foreground/50 mt-0.5">{line.variantLabel}</p>}
                       <p className="text-sm font-bold mt-1.5">{formatINR(line.unitPrice)}</p>
                     </div>
                     <button
-                      onClick={() => removeItem(line.item.productId, line.item.variantId)}
+                      onClick={() => removeItem(line.productId, line.variantId ?? undefined)}
                       className="shrink-0 p-1.5 text-foreground/30 hover:text-danger-500"
                       aria-label="Remove item"
                     >
@@ -98,8 +91,8 @@ export default function CartPage() {
                     <label className="mt-2 flex items-center gap-2 text-xs text-foreground/65 cursor-pointer">
                       <input
                         type="checkbox"
-                        checked={line.item.addInstallation}
-                        onChange={(e) => toggleInstallation(line.item.productId, line.item.variantId, e.target.checked)}
+                        checked={line.addInstallation}
+                        onChange={(e) => toggleInstallation(line.productId, line.variantId ?? undefined, e.target.checked)}
                         className="accent-brand-500"
                       />
                       <Wrench size={12} />
@@ -117,8 +110,8 @@ export default function CartPage() {
                   <div className="mt-3 flex items-center justify-between">
                     <QuantityStepper
                       size="sm"
-                      value={line.item.qty}
-                      onChange={(qty) => updateQty(line.item.productId, line.item.variantId, qty)}
+                      value={line.qty}
+                      onChange={(qty) => updateQty(line.productId, line.variantId ?? undefined, qty)}
                     />
                     <span className="text-sm font-bold">{formatINR(line.lineTotal)}</span>
                   </div>
@@ -199,7 +192,7 @@ export default function CartPage() {
                     className="flex-1 h-10 rounded-lg border border-border-subtle px-3 text-sm outline-none focus:border-brand-500"
                   />
                   <button
-                    onClick={handleApplyCoupon}
+                    onClick={() => applyCoupon(couponInput)}
                     className="shrink-0 rounded-lg bg-brand-500 px-4 text-sm font-semibold text-white hover:bg-brand-600"
                   >
                     Apply

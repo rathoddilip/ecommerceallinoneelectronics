@@ -37,23 +37,23 @@ function LoginContent() {
     if (/^\d{10}$/.test(mobile)) setOtpSent(true);
   }
 
-  function handleVerifyOtp() {
+  async function handleVerifyOtp() {
     if (otp.length === 4) {
-      login(mobile, name);
+      await login(mobile, name);
       router.push(redirect);
     }
   }
 
-  function handlePasswordLogin(e: React.FormEvent) {
+  async function handlePasswordLogin(e: React.FormEvent) {
     e.preventDefault();
     if (email.includes("@") && password.length >= 4) {
-      login(email.split("@")[0], email.split("@")[0]);
+      await login(email.split("@")[0], email.split("@")[0]);
       router.push(redirect);
     }
   }
 
-  function handleGoogle() {
-    login("9999900000", "Google User");
+  async function handleGoogle() {
+    await login("9999900000", "Google User");
     router.push(redirect);
   }
 

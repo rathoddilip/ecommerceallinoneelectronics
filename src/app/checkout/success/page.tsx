@@ -11,7 +11,12 @@ import Button from "@/components/ui/Button";
 function SuccessContent() {
   const orderNo = useSearchParams().get("order");
   const orders = useAccountStore((s) => s.orders);
+  const hasHydrated = useAccountStore((s) => s.hasHydrated);
   const order = orders.find((o) => o.orderNo === orderNo);
+
+  if (!hasHydrated) {
+    return <div className="container-page py-24 text-center text-foreground/40">Loading…</div>;
+  }
 
   if (!order) {
     return (

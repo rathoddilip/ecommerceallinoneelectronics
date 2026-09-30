@@ -4,7 +4,6 @@ import Link from "next/link";
 import { X, ShoppingBag, Trash2 } from "lucide-react";
 import { useUIStore } from "@/lib/store/ui";
 import { useCartStore } from "@/lib/store/cart";
-import { buildCartLines, computeTotals } from "@/lib/cartSelectors";
 import { formatINR } from "@/lib/format";
 import ProductVisual from "@/components/product/ProductVisual";
 import QuantityStepper from "@/components/ui/QuantityStepper";
@@ -15,13 +14,10 @@ import { cn } from "@/lib/utils";
 export default function CartDrawer() {
   const isOpen = useUIStore((s) => s.isCartOpen);
   const closeCart = useUIStore((s) => s.closeCart);
-  const items = useCartStore((s) => s.items);
+  const lines = useCartStore((s) => s.lines);
+  const totals = useCartStore((s) => s.totals);
   const updateQty = useCartStore((s) => s.updateQty);
   const removeItem = useCartStore((s) => s.removeItem);
-  const couponCode = useCartStore((s) => s.couponCode);
-
-  const lines = buildCartLines(items);
-  const totals = computeTotals(lines, couponCode);
 
   return (
     <Portal>
@@ -60,7 +56,7 @@ export default function CartDrawer() {
           <>
             <div className="flex-1 overflow-y-auto divide-y divide-border-subtle">
               {lines.map((line) => (
-                <div key={`${line.item.productId}-${line.item.variantId ?? ""}`} className="flex gap-3 p-4">
+                <div key={`${line.productId}-${line.variantId ?? ""}`} className="flex gap-3 p-4">
                   <ProductVisual
                     department={line.product.department}
                     category={line.product.category}
@@ -75,20 +71,20 @@ export default function CartDrawer() {
                     >
                       {line.product.name}
                     </Link>
-                    {line.variant && (
-                      <p className="text-xs text-foreground/50 mt-0.5">{line.variant.label}</p>
+                    {line.variantLabel && (
+                      <p className="text-xs text-foreground/50 mt-0.5">{line.variantLabel}</p>
                     )}
                     <div className="flex items-center justify-between mt-2">
                       <QuantityStepper
                         size="sm"
-                        value={line.item.qty}
-                        onChange={(qty) => updateQty(line.item.productId, line.item.variantId, qty)}
+                        value={line.qty}
+                        onChange={(qty) => updateQty(line.productId, line.variantId ?? undefined, qty)}
                       />
                       <span className="text-sm font-semibold">{formatINR(line.lineTotal)}</span>
                     </div>
                   </div>
                   <button
-                    onClick={() => removeItem(line.item.productId, line.item.variantId)}
+                    onClick={() => removeItem(line.productId, line.variantId ?? undefined)}
                     aria-label="Remove item"
                     className="self-start p-1.5 text-foreground/30 hover:text-danger-500"
                   >

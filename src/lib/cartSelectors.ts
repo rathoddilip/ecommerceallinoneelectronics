@@ -1,36 +1,16 @@
-import { getProductById } from "@/lib/data/products";
-import { amcPlans } from "@/lib/data/amcPlans";
-import type { CartItem, Product, ProductVariant } from "@/lib/types";
+import type { CartItem } from "@/lib/types";
 
+// A minimal line shape: computeTotals only reads these fields, so callers
+// (client store, server cart builder) can feed it lines from either source.
 export interface CartLine {
-  item: CartItem;
-  product: Product;
-  variant?: ProductVariant;
+  item: Pick<CartItem, "qty">;
+  product: { gstRate: number };
   unitPrice: number;
   unitMrp: number;
   lineSubtotal: number;
   installationFee: number;
   amcFee: number;
   lineTotal: number;
-}
-
-export function buildCartLines(items: CartItem[]): CartLine[] {
-  return items
-    .map((item) => {
-      const product = getProductById(item.productId);
-      if (!product) return null;
-      const variant = product.variants?.find((v) => v.id === item.variantId);
-      const unitPrice = product.price + (variant?.priceDelta ?? 0);
-      const unitMrp = product.mrp + (variant?.priceDelta ?? 0);
-      const lineSubtotal = unitPrice * item.qty;
-      const installationFee = item.addInstallation ? product.installationFee * item.qty : 0;
-      const amcPlan = item.addAmcPlanId ? amcPlans.find((p) => p.id === item.addAmcPlanId) : undefined;
-      const amcFee = amcPlan ? amcPlan.price : 0;
-      const lineTotal = lineSubtotal + installationFee + amcFee;
-      const line: CartLine = { item, product, variant, unitPrice, unitMrp, lineSubtotal, installationFee, amcFee, lineTotal };
-      return line;
-    })
-    .filter((line): line is CartLine => line !== null);
 }
 
 export interface CartTotals {

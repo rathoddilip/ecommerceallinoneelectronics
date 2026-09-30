@@ -58,8 +58,8 @@ export default function AccountNav() {
       </ul>
       {user && (
         <button
-          onClick={() => {
-            logout();
+          onClick={async () => {
+            await logout();
             router.push("/");
           }}
           className="mt-2 flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium text-danger-500 hover:bg-danger-500/5"

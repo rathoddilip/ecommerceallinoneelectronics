@@ -19,7 +19,7 @@ export default function Header() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [openDept, setOpenDept] = useState<string | null>(null);
 
-  const cartCount = useCartStore((s) => s.items.reduce((sum, i) => sum + i.qty, 0));
+  const cartCount = useCartStore((s) => s.totals.itemCount);
   const wishlistCount = useAccountStore((s) => s.wishlist.length);
   const user = useAccountStore((s) => s.user);
   const openCart = useUIStore((s) => s.openCart);

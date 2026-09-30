@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Heart, Share2, ShieldCheck, RotateCcw, Wrench, Truck, Check } from "lucide-react";
-import type { Product } from "@/lib/types";
+import type { AmcPlan, Product } from "@/lib/types";
 import ProductVisual from "@/components/product/ProductVisual";
 import PriceTag from "@/components/ui/PriceTag";
 import Rating from "@/components/ui/Rating";
@@ -14,7 +14,7 @@ import PincodeCheck from "@/components/product/PincodeCheck";
 import { useCartStore } from "@/lib/store/cart";
 import { useAccountStore } from "@/lib/store/account";
 import { useUIStore } from "@/lib/store/ui";
-import { amcPlansFor } from "@/lib/data/amcPlans";
+import { apiFetch } from "@/lib/api";
 import { formatINR } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -23,6 +23,7 @@ export default function ProductDetailClient({ product }: { product: Product }) {
   const [qty, setQty] = useState(1);
   const [addInstallation, setAddInstallation] = useState(product.installation === "free");
   const [amcPlanId, setAmcPlanId] = useState<string | undefined>(undefined);
+  const [plans, setPlans] = useState<AmcPlan[]>([]);
 
   const addItem = useCartStore((s) => s.addItem);
   const openCart = useUIStore((s) => s.openCart);
@@ -32,7 +33,12 @@ export default function ProductDetailClient({ product }: { product: Product }) {
   const variant = product.variants?.find((v) => v.id === variantId);
   const price = product.price + (variant?.priceDelta ?? 0);
   const mrp = product.mrp + (variant?.priceDelta ?? 0);
-  const plans = useMemo(() => amcPlansFor(product.department), [product.department]);
+
+  useEffect(() => {
+    apiFetch<AmcPlan[]>("/api/amc-plans")
+      .then((all) => setPlans(all.filter((p) => p.applicableCategories.includes(product.department))))
+      .catch(() => {});
+  }, [product.department]);
 
   function handleAddToCart() {
     addItem({

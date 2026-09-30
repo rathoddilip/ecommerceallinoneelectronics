@@ -3,9 +3,8 @@
 import { useMemo, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { SlidersHorizontal } from "lucide-react";
-import { products } from "@/lib/data/products";
 import { categories, departments } from "@/lib/data/categories";
-import type { Department } from "@/lib/types";
+import type { Department, Product } from "@/lib/types";
 import FilterSidebar, { PRICE_CEILING, type ShopFilters } from "@/components/shop/FilterSidebar";
 import SortDropdown, { type SortOption } from "@/components/shop/SortDropdown";
 import ProductGrid from "@/components/shop/ProductGrid";
@@ -16,7 +15,7 @@ function isDepartment(value: string | null): value is Department {
   return value === "electrical" || value === "electronics" || value === "water-purifiers";
 }
 
-export default function ShopClient() {
+export default function ShopClient({ products }: { products: Product[] }) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -79,7 +78,7 @@ export default function ShopClient() {
         break;
     }
     return list;
-  }, [filters, sort]);
+  }, [products, filters, sort]);
 
   const deptMeta = filters.dept !== "all" ? departments.find((d) => d.slug === filters.dept) : null;
   const categoryMeta = filters.category !== "all" ? categories.find((c) => c.slug === filters.category) : null;
@@ -87,7 +86,7 @@ export default function ShopClient() {
   const availableBrands = useMemo(() => {
     const base = filters.dept === "all" ? products : products.filter((p) => p.department === filters.dept);
     return Array.from(new Set(base.map((p) => p.brand))).sort();
-  }, [filters.dept]);
+  }, [products, filters.dept]);
 
   return (
     <div className="container-page py-6">
