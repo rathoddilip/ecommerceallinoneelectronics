@@ -1,0 +1,119 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f7f8fa;
+  --foreground: #101828;
+  --surface: #ffffff;
+  --surface-muted: #f1f3f6;
+  --border-subtle: #e4e7ec;
+
+  --brand-50: #eef4ff;
+  --brand-100: #d9e6ff;
+  --brand-200: #b3cdff;
+  --brand-300: #80abff;
+  --brand-400: #4d84ff;
+  --brand-500: #2563eb;
+  --brand-600: #1d4fd1;
+  --brand-700: #1a3fa8;
+  --brand-800: #163584;
+  --brand-900: #122a66;
+
+  --accent-400: #fbbf24;
+  --accent-500: #f59e0b;
+  --accent-600: #d97706;
+
+  --success-500: #16a34a;
+  --success-600: #15803d;
+  --danger-500: #e11d48;
+  --danger-600: #be123c;
+
+  --electrical-500: #ea580c;
+  --electrical-600: #c2410c;
+  --electronics-500: #4f46e5;
+  --electronics-600: #4338ca;
+  --water-500: #0891b2;
+  --water-600: #0e7490;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-border-subtle: var(--border-subtle);
+
+  --color-brand-50: var(--brand-50);
+  --color-brand-100: var(--brand-100);
+  --color-brand-200: var(--brand-200);
+  --color-brand-300: var(--brand-300);
+  --color-brand-400: var(--brand-400);
+  --color-brand-500: var(--brand-500);
+  --color-brand-600: var(--brand-600);
+  --color-brand-700: var(--brand-700);
+  --color-brand-800: var(--brand-800);
+  --color-brand-900: var(--brand-900);
+
+  --color-accent-400: var(--accent-400);
+  --color-accent-500: var(--accent-500);
+  --color-accent-600: var(--accent-600);
+
+  --color-success-500: var(--success-500);
+  --color-success-600: var(--success-600);
+  --color-danger-500: var(--danger-500);
+  --color-danger-600: var(--danger-600);
+
+  --color-electrical-500: var(--electrical-500);
+  --color-electrical-600: var(--electrical-600);
+  --color-electronics-500: var(--electronics-500);
+  --color-electronics-600: var(--electronics-600);
+  --color-water-500: var(--water-500);
+  --color-water-600: var(--water-600);
+
+  --font-sans: var(--font-body);
+  --font-display: var(--font-heading);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+* {
+  scrollbar-color: var(--border-subtle) transparent;
+}
+
+.container-page {
+  width: 100%;
+  max-width: 84rem;
+  margin-inline: auto;
+  padding-inline: 1rem;
+}
+
+@media (min-width: 640px) {
+  .container-page {
+    padding-inline: 1.5rem;
+  }
+}
+
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.card-surface {
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 1rem;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  height: 6px;
+  width: 6px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: var(--border-subtle);
+  border-radius: 999px;
+}
