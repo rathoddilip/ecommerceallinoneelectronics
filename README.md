@@ -27,9 +27,9 @@ This project is the **customer-facing website**: browsing, cart, checkout, and t
 
 ## Getting Started
 
-1. **Database.** Create a free Postgres database — easiest is the **Storage** tab of this project on Vercel (Postgres via Neon), or any Postgres instance (Neon, Supabase, Railway, local). Copy the connection string.
-2. Copy `.env.example` to `.env` and paste your connection string into `DATABASE_URL`.
-3. Install, push the schema, and seed the catalog:
+1. **Database.** Create a free Postgres database — easiest is the **Storage** tab of this project on Vercel (Postgres via Neon). Open it, go to the **.env.local** tab, and copy the `DATABASE_URL_UNPOOLED` value (the app talks to Neon over WebSocket, not a TCP pool, so the unpooled string is the right one to use everywhere).
+2. Copy `.env.example` to `.env` and paste that value into `DATABASE_URL`.
+3. Install, create the tables, load the catalog, and run:
 
 ```bash
 npm install
@@ -41,7 +41,7 @@ npm run dev
 Open [http://localhost:3000](http://localhost:3000).
 
 ```bash
-npm run build      # production build (runs `prisma generate` first)
+npm run build      # production build (compile only — no database needed)
 npm run start      # run the production build
 npm run lint       # ESLint
 npm run db:studio  # browse the database in Prisma Studio
@@ -49,7 +49,9 @@ npm run db:studio  # browse the database in Prisma Studio
 
 ### Deploying
 
-On Vercel: connect a Postgres database from the project's **Storage** tab (this sets `DATABASE_URL` automatically), then run `npm run db:push && npm run db:seed` once (e.g. via `vercel env pull` + running locally, or a one-off script) to create tables and load the catalog. Every subsequent `git push` redeploys automatically.
+On Vercel: connect a Postgres database from the project's **Storage** tab. That auto-adds several env vars, including a pooled `DATABASE_URL` — **overwrite that one** (Project Settings → Environment Variables) with the value of the `DATABASE_URL_UNPOOLED` var it also added, since this app's Prisma client uses Neon's WebSocket driver rather than a pooled TCP connection.
+
+Deploys use the `vercel-build` script (Vercel picks it up automatically in place of `build`), which runs a schema push and an idempotent re-seed before compiling — so once `DATABASE_URL` is set there's no separate manual database step. Every `git push` redeploys (and re-syncs the schema/catalog) automatically.
 
 ## Architecture Notes
 

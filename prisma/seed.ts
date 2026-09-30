@@ -1,12 +1,15 @@
 import "dotenv/config";
 import { PrismaClient } from "../src/generated/prisma/client";
-import { PrismaPg } from "@prisma/adapter-pg";
+import { PrismaNeon } from "@prisma/adapter-neon";
+import { neonConfig } from "@neondatabase/serverless";
+import ws from "ws";
 import { products } from "../src/lib/data/products";
 import { categories } from "../src/lib/data/categories";
 import { allBrands } from "../src/lib/data/brands";
 import { amcPlans } from "../src/lib/data/amcPlans";
 
-const adapter = new PrismaPg(process.env.DATABASE_URL!);
+neonConfig.webSocketConstructor = ws;
+const adapter = new PrismaNeon({ connectionString: process.env.DATABASE_URL! });
 const prisma = new PrismaClient({ adapter });
 
 function toDeptEnum(dept: string) {
