@@ -2,6 +2,7 @@ import { PrismaClient } from "@/generated/prisma/client";
 import { PrismaNeon } from "@prisma/adapter-neon";
 import { neonConfig } from "@neondatabase/serverless";
 import ws from "ws";
+import { getDatabaseUrl } from "@/lib/db-url";
 
 // Neon's driver speaks Postgres over WebSocket rather than a raw TCP
 // connection — the right choice for a serverless host like Vercel (no
@@ -12,7 +13,7 @@ neonConfig.webSocketConstructor = ws;
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
 function createClient() {
-  const connectionString = process.env.DATABASE_URL;
+  const connectionString = getDatabaseUrl();
   if (!connectionString) {
     throw new Error(
       "DATABASE_URL is not set. Add it to .env (local) or your hosting provider's environment variables."

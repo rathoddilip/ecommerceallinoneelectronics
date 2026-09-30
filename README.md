@@ -49,9 +49,9 @@ npm run db:studio  # browse the database in Prisma Studio
 
 ### Deploying
 
-On Vercel: connect a Postgres database from the project's **Storage** tab. That auto-adds several env vars, including a pooled `DATABASE_URL` — **overwrite that one** (Project Settings → Environment Variables) with the value of the `DATABASE_URL_UNPOOLED` var it also added, since this app's Prisma client uses Neon's WebSocket driver rather than a pooled TCP connection.
+On Vercel: connect a Postgres database from the project's **Storage** tab — that's the only manual step. Vercel's integration adds several env vars including both a pooled `DATABASE_URL` and an unpooled `DATABASE_URL_UNPOOLED`; those are locked (integration-managed) so they can't be hand-edited, which is fine — `src/lib/db-url.ts` picks `DATABASE_URL_UNPOOLED` automatically whenever it's present, since this app's Prisma client uses Neon's WebSocket driver rather than a pooled TCP connection.
 
-Deploys use the `vercel-build` script (Vercel picks it up automatically in place of `build`), which runs a schema push and an idempotent re-seed before compiling — so once `DATABASE_URL` is set there's no separate manual database step. Every `git push` redeploys (and re-syncs the schema/catalog) automatically.
+Deploys use the `vercel-build` script (Vercel picks it up automatically in place of `build`), which runs a schema push and an idempotent re-seed before compiling — so there's no separate manual database step. Every `git push` redeploys (and re-syncs the schema/catalog) automatically.
 
 ## Architecture Notes
 
