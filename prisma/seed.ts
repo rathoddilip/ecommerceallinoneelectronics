@@ -3,6 +3,7 @@ import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaNeon } from "@prisma/adapter-neon";
 import { neonConfig } from "@neondatabase/serverless";
 import ws from "ws";
+import bcrypt from "bcryptjs";
 import { getDatabaseUrl } from "../src/lib/db-url";
 import { products } from "../src/lib/data/products";
 import { categories } from "../src/lib/data/categories";
@@ -114,6 +115,27 @@ async function main() {
   }
 
   console.log("Seed complete.");
+
+  const adminEmail = process.env.ADMIN_EMAIL;
+  const adminPassword = process.env.ADMIN_PASSWORD;
+  if (adminEmail && adminPassword) {
+    const existing = await prisma.adminUser.findUnique({ where: { email: adminEmail.toLowerCase() } });
+    if (!existing) {
+      await prisma.adminUser.create({
+        data: {
+          email: adminEmail.toLowerCase(),
+          passwordHash: await bcrypt.hash(adminPassword, 12),
+          name: "Store Owner",
+          role: "super_admin",
+        },
+      });
+      console.log(`Created super admin account for ${adminEmail}.`);
+    } else {
+      console.log(`Super admin ${adminEmail} already exists, skipping.`);
+    }
+  } else {
+    console.log("ADMIN_EMAIL / ADMIN_PASSWORD not set — skipping admin account creation.");
+  }
 }
 
 main()

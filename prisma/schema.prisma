@@ -68,6 +68,26 @@ enum AmcStatus {
   expired
 }
 
+enum AdminRole {
+  super_admin
+  staff
+}
+
+// ─────────────────────────── Admin ───────────────────────────
+// Separate from the customer session model above: real email+password
+// auth, gated behind a signed session cookie (see src/lib/admin/auth.ts).
+
+model AdminUser {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  name         String
+  role         AdminRole @default(staff)
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
 // ─────────────────── Anonymous-session profile ───────────────────
 // No real authentication yet: every visitor gets a random session id
 // (httpOnly cookie) that keys their cart, orders, addresses, etc.
