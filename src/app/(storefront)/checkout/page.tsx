@@ -17,7 +17,8 @@ import {
 import { useCartStore } from "@/lib/store/cart";
 import { useAccountStore } from "@/lib/store/account";
 import { formatINR } from "@/lib/format";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, ApiError } from "@/lib/api";
+import { loadRazorpayScript, openRazorpayCheckout } from "@/lib/razorpayClient";
 import type { Address } from "@/lib/types";
 import Breadcrumbs from "@/components/ui/Breadcrumbs";
 import Button from "@/components/ui/Button";
@@ -54,7 +55,10 @@ export default function CheckoutPage() {
   const [step, setStep] = useState(0);
   const [mobile, setMobile] = useState("");
   const [otpSent, setOtpSent] = useState(false);
+  const [otpDemo, setOtpDemo] = useState(true);
   const [otp, setOtp] = useState("");
+  const [otpBusy, setOtpBusy] = useState(false);
+  const [otpError, setOtpError] = useState("");
 
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(addresses[0]?.id ?? null);
   const [showAddressForm, setShowAddressForm] = useState(addresses.length === 0);
@@ -92,11 +96,35 @@ export default function CheckoutPage() {
     );
   }
 
-  function handleSendOtp() {
-    if (/^\d{10}$/.test(mobile)) setOtpSent(true);
+  async function handleSendOtp() {
+    if (!/^\d{10}$/.test(mobile)) return;
+    setOtpBusy(true);
+    setOtpError("");
+    try {
+      const res = await apiFetch<{ sent: boolean; demo: boolean }>("/api/auth/otp/send", {
+        method: "POST",
+        body: JSON.stringify({ mobile }),
+      });
+      setOtpDemo(res.demo);
+      setOtpSent(true);
+    } catch (e) {
+      setOtpError(e instanceof ApiError ? e.message : "Could not send OTP");
+    } finally {
+      setOtpBusy(false);
+    }
   }
-  function handleVerifyOtp() {
-    if (otp.length === 4) login(mobile);
+
+  async function handleVerifyOtp() {
+    if (otp.length !== 4) return;
+    setOtpBusy(true);
+    setOtpError("");
+    try {
+      await login(mobile, undefined, { otp, via: "otp" });
+    } catch (e) {
+      setOtpError(e instanceof ApiError ? e.message : "Could not verify OTP");
+    } finally {
+      setOtpBusy(false);
+    }
   }
 
   async function handleSaveAddress() {
@@ -111,13 +139,49 @@ export default function CheckoutPage() {
     if (!selectedAddressId) return;
     setPlacing(true);
     setPlaceError("");
+    const paymentMethod = paymentOptions.find((p) => p.id === payment)?.label ?? payment;
+
     try {
+      let razorpay: { orderId: string; paymentId: string; signature: string } | undefined;
+
+      if (payment !== "cod") {
+        // Try to start a real Razorpay payment; a 503 means it isn't
+        // configured yet, so fall back to the existing demo flow below.
+        const rzpOrder = await apiFetch<{ orderId: string; amount: number; currency: string; keyId: string }>(
+          "/api/payments/razorpay/order",
+          { method: "POST" }
+        ).catch((e) => {
+          if (e instanceof ApiError && e.status === 503) return null;
+          throw e;
+        });
+
+        if (rzpOrder) {
+          await loadRazorpayScript();
+          const result = await openRazorpayCheckout({
+            key: rzpOrder.keyId,
+            amount: rzpOrder.amount,
+            currency: rzpOrder.currency,
+            order_id: rzpOrder.orderId,
+            name: "AllInOne Electronics",
+            description: "Order payment",
+            prefill: { contact: user?.mobile, name: user?.name },
+            theme: { color: "#2563eb" },
+          });
+          razorpay = {
+            orderId: result.razorpay_order_id,
+            paymentId: result.razorpay_payment_id,
+            signature: result.razorpay_signature,
+          };
+        }
+      }
+
       const order = await apiFetch<{ orderNo: string }>("/api/orders", {
         method: "POST",
         body: JSON.stringify({
           addressId: selectedAddressId,
-          paymentMethod: paymentOptions.find((p) => p.id === payment)?.label ?? payment,
+          paymentMethod,
           gstin: gstin || undefined,
+          razorpay,
         }),
       });
       await Promise.all([fetchCart(), fetchOrders()]);
@@ -155,6 +219,7 @@ export default function CheckoutPage() {
           {!user && (
             <div className="mb-6 rounded-xl border border-border-subtle p-4">
               <p className="text-sm font-semibold mb-2">Login to continue</p>
+              {otpError && <p className="text-sm text-danger-500 mb-2">{otpError}</p>}
               {!otpSent ? (
                 <div className="flex gap-2">
                   <Input
@@ -162,16 +227,20 @@ export default function CheckoutPage() {
                     onChange={(e) => setMobile(e.target.value.replace(/\D/g, "").slice(0, 10))}
                     placeholder="10-digit mobile number"
                   />
-                  <Button onClick={handleSendOtp} className="shrink-0">Send OTP</Button>
+                  <Button onClick={handleSendOtp} disabled={mobile.length !== 10 || otpBusy} className="shrink-0">
+                    {otpBusy ? "Sending…" : "Send OTP"}
+                  </Button>
                 </div>
               ) : (
                 <div className="flex gap-2">
                   <Input
                     value={otp}
                     onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 4))}
-                    placeholder="Enter OTP (any 4 digits)"
+                    placeholder={otpDemo ? "Enter OTP (any 4 digits)" : `Sent to +91 ${mobile}`}
                   />
-                  <Button onClick={handleVerifyOtp} className="shrink-0">Verify</Button>
+                  <Button onClick={handleVerifyOtp} disabled={otp.length !== 4 || otpBusy} className="shrink-0">
+                    {otpBusy ? "Verifying…" : "Verify"}
+                  </Button>
                 </div>
               )}
             </div>

@@ -25,7 +25,7 @@ interface AccountState {
   hasHydrated: boolean;
 
   hydrate: () => Promise<void>;
-  login: (mobile: string, name?: string) => Promise<void>;
+  login: (mobile: string, name?: string, opts?: { otp?: string; via?: "otp" | "google" | "password" }) => Promise<void>;
   logout: () => Promise<void>;
 
   fetchAddresses: () => Promise<void>;
@@ -66,10 +66,10 @@ export const useAccountStore = create<AccountState>()((set, get) => ({
     ]);
   },
 
-  login: async (mobile, name) => {
+  login: async (mobile, name, opts) => {
     const user = await apiFetch<User>("/api/auth/login", {
       method: "POST",
-      body: JSON.stringify({ mobile, name }),
+      body: JSON.stringify({ mobile, name, otp: opts?.otp, via: opts?.via }),
     });
     set({ user });
     await Promise.all([get().fetchOrders(), get().fetchServiceRequests(), get().fetchMyProducts()]);

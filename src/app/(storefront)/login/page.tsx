@@ -4,6 +4,7 @@ import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Zap, Smartphone, Mail } from "lucide-react";
 import { useAccountStore } from "@/lib/store/account";
+import { apiFetch, ApiError } from "@/lib/api";
 import Button from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Input";
 import { cn } from "@/lib/utils";
@@ -27,33 +28,57 @@ function LoginContent() {
   const [mode, setMode] = useState<"otp" | "password">("otp");
   const [mobile, setMobile] = useState("");
   const [otpSent, setOtpSent] = useState(false);
+  const [otpDemo, setOtpDemo] = useState(true);
   const [otp, setOtp] = useState("");
   const [name, setName] = useState("");
+  const [otpBusy, setOtpBusy] = useState(false);
+  const [otpError, setOtpError] = useState("");
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  function handleSendOtp() {
-    if (/^\d{10}$/.test(mobile)) setOtpSent(true);
+  async function handleSendOtp() {
+    if (!/^\d{10}$/.test(mobile)) return;
+    setOtpBusy(true);
+    setOtpError("");
+    try {
+      const res = await apiFetch<{ sent: boolean; demo: boolean }>("/api/auth/otp/send", {
+        method: "POST",
+        body: JSON.stringify({ mobile }),
+      });
+      setOtpDemo(res.demo);
+      setOtpSent(true);
+    } catch (e) {
+      setOtpError(e instanceof ApiError ? e.message : "Could not send OTP");
+    } finally {
+      setOtpBusy(false);
+    }
   }
 
   async function handleVerifyOtp() {
-    if (otp.length === 4) {
-      await login(mobile, name);
+    if (otp.length !== 4) return;
+    setOtpBusy(true);
+    setOtpError("");
+    try {
+      await login(mobile, name, { otp, via: "otp" });
       router.push(redirect);
+    } catch (e) {
+      setOtpError(e instanceof ApiError ? e.message : "Could not verify OTP");
+    } finally {
+      setOtpBusy(false);
     }
   }
 
   async function handlePasswordLogin(e: React.FormEvent) {
     e.preventDefault();
     if (email.includes("@") && password.length >= 4) {
-      await login(email.split("@")[0], email.split("@")[0]);
+      await login(email.split("@")[0], email.split("@")[0], { via: "password" });
       router.push(redirect);
     }
   }
 
   async function handleGoogle() {
-    await login("9999900000", "Google User");
+    await login("9999900000", "Google User", { via: "google" });
     router.push(redirect);
   }
 
@@ -97,20 +122,25 @@ function LoginContent() {
                 />
               </div>
             </Field>
+            {otpError && <p className="text-sm text-danger-500">{otpError}</p>}
             {!otpSent ? (
-              <Button fullWidth size="lg" disabled={mobile.length !== 10} onClick={handleSendOtp}>
-                Send OTP
+              <Button fullWidth size="lg" disabled={mobile.length !== 10 || otpBusy} onClick={handleSendOtp}>
+                {otpBusy ? "Sending…" : "Send OTP"}
               </Button>
             ) : (
               <>
                 <Field label="Your Name">
                   <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Optional" />
                 </Field>
-                <Field label="Enter OTP" required hint="For this demo, any 4 digits will work">
+                <Field
+                  label="Enter OTP"
+                  required
+                  hint={otpDemo ? "For this demo, any 4 digits will work" : `Sent to +91 ${mobile}`}
+                >
                   <Input value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="••••" />
                 </Field>
-                <Button fullWidth size="lg" disabled={otp.length !== 4} onClick={handleVerifyOtp}>
-                  Verify & Continue
+                <Button fullWidth size="lg" disabled={otp.length !== 4 || otpBusy} onClick={handleVerifyOtp}>
+                  {otpBusy ? "Verifying…" : "Verify & Continue"}
                 </Button>
               </>
             )}

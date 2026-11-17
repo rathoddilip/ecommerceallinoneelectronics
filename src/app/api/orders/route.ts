@@ -4,6 +4,7 @@ import { getOrCreateSessionId } from "@/lib/session";
 import { buildCartResponse } from "@/lib/server/cart";
 import { generateOrderNo } from "@/lib/utils";
 import { serializeOrder } from "@/lib/serializers";
+import { isRazorpayConfigured, verifySignature } from "@/lib/razorpay";
 
 export async function GET() {
   const sessionId = await getOrCreateSessionId();
@@ -19,6 +20,7 @@ interface PlaceOrderBody {
   addressId: string;
   paymentMethod: string;
   gstin?: string;
+  razorpay?: { orderId: string; paymentId: string; signature: string };
 }
 
 export async function POST(req: Request) {
@@ -33,6 +35,19 @@ export async function POST(req: Request) {
   const cartData = await buildCartResponse(sessionId);
   if (cartData.lines.length === 0) {
     return NextResponse.json({ error: "Cart is empty" }, { status: 400 });
+  }
+
+  const isCod = body.paymentMethod === "Cash on Delivery";
+  let paymentStatus: "pending" | "paid" = isCod ? "pending" : "paid";
+
+  // Once Razorpay is configured, every non-COD order must carry a
+  // signature we can verify — no more trusting the client's word that it paid.
+  if (!isCod && isRazorpayConfigured()) {
+    const rzp = body.razorpay;
+    if (!rzp || !verifySignature(rzp.orderId, rzp.paymentId, rzp.signature)) {
+      return NextResponse.json({ error: "Payment verification failed" }, { status: 400 });
+    }
+    paymentStatus = "paid";
   }
 
   const totals = cartData.totals;
@@ -50,7 +65,7 @@ export async function POST(req: Request) {
       installationTotal: totals.installationTotal + totals.amcTotal,
       grandTotal: totals.grandTotal,
       paymentMethod: body.paymentMethod,
-      paymentStatus: body.paymentMethod === "Cash on Delivery" ? "pending" : "paid",
+      paymentStatus,
       status: "placed",
       couponCode: cartData.couponCode,
       gstin: body.gstin,

@@ -1,12 +1,27 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateSessionId, setLoggedIn } from "@/lib/session";
+import { isSmsConfigured, verifyOtp } from "@/lib/sms";
 
-// Mock login: any 4-digit OTP is accepted by the client before calling this.
-// Real SMS/Google verification is out of scope for this pass — see README.
+// `via: "otp"` is the one real auth path: when MSG91 is configured, the
+// OTP sent to `mobile` is verified here before we trust it. The Google and
+// email/password buttons on the login page are still demo-only mocks (out
+// of scope for this pass) and don't set `via`, so they keep working
+// unchanged — this gate only ever applies to the mobile-OTP flow.
 export async function POST(req: Request) {
-  const { mobile, name } = (await req.json()) as { mobile: string; name?: string };
+  const { mobile, name, otp, via } = (await req.json()) as {
+    mobile: string;
+    name?: string;
+    otp?: string;
+    via?: string;
+  };
   if (!mobile) return NextResponse.json({ error: "mobile is required" }, { status: 400 });
+
+  if (via === "otp" && isSmsConfigured()) {
+    if (!otp) return NextResponse.json({ error: "otp is required" }, { status: 400 });
+    const verified = await verifyOtp(mobile, otp).catch(() => false);
+    if (!verified) return NextResponse.json({ error: "Invalid or expired OTP" }, { status: 401 });
+  }
 
   const sessionId = await getOrCreateSessionId();
 
