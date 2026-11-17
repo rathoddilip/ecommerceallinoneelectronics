@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import Header from "@/components/layout/Header";
@@ -19,13 +19,42 @@ const headingFont = Plus_Jakarta_Sans({
   display: "swap",
 });
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+const siteName = "AllInOne Electronics";
+const description =
+  "Shop electrical goods, electronics and water purifiers with free installation, genuine warranty and doorstep service across India.";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
   title: {
-    default: "AllInOne Electronics — Electrical, Electronics & Water Purifiers",
-    template: "%s | AllInOne Electronics",
+    default: `${siteName} — Electrical, Electronics & Water Purifiers`,
+    template: `%s | ${siteName}`,
   },
-  description:
-    "Shop electrical goods, electronics and water purifiers with free installation, genuine warranty and doorstep service across India.",
+  description,
+  keywords: [
+    "electrical goods online",
+    "electronics store India",
+    "water purifier online",
+    "RO water purifier",
+    "AMC plans",
+    "appliance installation",
+  ],
+  openGraph: {
+    type: "website",
+    siteName,
+    title: `${siteName} — Electrical, Electronics & Water Purifiers`,
+    description,
+    locale: "en_IN",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: `${siteName} — Electrical, Electronics & Water Purifiers`,
+    description,
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#2563eb",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
